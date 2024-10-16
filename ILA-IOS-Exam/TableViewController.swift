@@ -1,15 +1,15 @@
 import UIKit
 
 class TableViewController: UIViewController {
-    @IBOutlet weak var searchBar: UISearchBar!
-    @IBOutlet weak var tableView: UITableView!
-    @IBOutlet weak var scrollView: UIScrollView!
-    @IBOutlet weak var pageControl: UIPageControl!
+    @IBOutlet private weak var searchBar: UISearchBar!
+    @IBOutlet private weak var tableView: UITableView!
+    @IBOutlet private weak var scrollView: UIScrollView!
+    @IBOutlet private weak var pageControl: UIPageControl!
 
     private var countryList = [String]()
     private var searchedCountry = [String]()
     private var searching = false
-    private var selected: String?
+    private var selectedCountry: String?
     private let imageNames = ["imagedan", "bisb", "ila"]
 
     override func viewDidLoad() {
@@ -19,7 +19,7 @@ class TableViewController: UIViewController {
         setupTableView()
         setupScrollView()
         setupPageControl()
-        populateCountryList()
+        loadCountryList()
     }
     
     private func setupSearchBar() {
@@ -29,14 +29,15 @@ class TableViewController: UIViewController {
         searchBar.showsCancelButton = true
         searchBar.keyboardAppearance = .dark
         
-        let searchTextField = searchBar.searchTextField
-        searchTextField.textColor = .white
-        searchTextField.clearButtonMode = .never
-        searchTextField.backgroundColor = UIColor.colorFromHex("#9E1C40")
-        
-        if let glassIconView = searchTextField.leftView as? UIImageView {
-            glassIconView.image = glassIconView.image?.withRenderingMode(.alwaysTemplate)
-            glassIconView.tintColor = UIColor.colorFromHex("#BC214B")
+        if let searchTextField = searchBar.searchTextField as? UITextField {
+            searchTextField.textColor = .white
+            searchTextField.clearButtonMode = .never
+            searchTextField.backgroundColor = UIColor.colorFromHex("#9E1C40")
+            
+            if let glassIconView = searchTextField.leftView as? UIImageView {
+                glassIconView.image = glassIconView.image?.withRenderingMode(.alwaysTemplate)
+                glassIconView.tintColor = UIColor.colorFromHex("#BC214B")
+            }
         }
     }
     
@@ -44,8 +45,10 @@ class TableViewController: UIViewController {
         tableView.delegate = self
         tableView.dataSource = self
         tableView.separatorStyle = .none
-        tableView.tintColor = .white
         tableView.backgroundColor = UIColor.colorFromHex("#808080")
+        
+        // Register a reusable cell
+        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "CountryCell")
     }
     
     private func setupScrollView() {
@@ -66,7 +69,7 @@ class TableViewController: UIViewController {
         pageControl.currentPage = 0
     }
     
-    private func populateCountryList() {
+    private func loadCountryList() {
         countryList = NSLocale.isoCountryCodes.compactMap { code in
             let id = NSLocale.localeIdentifier(fromComponents: [NSLocale.Key.countryCode.rawValue: code])
             let name = NSLocale(localeIdentifier: "en").displayName(forKey: .identifier, value: id) ?? "Country not found for code: \(code)"
@@ -84,7 +87,7 @@ class TableViewController: UIViewController {
     
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         if segue.identifier == "detailsViewController", let destinationVC = segue.destination as? DetailsViewController {
-            destinationVC.selectedCountry = selected
+            destinationVC.selectedCountry = selectedCountry
         }
     }
 }
@@ -97,18 +100,20 @@ extension TableViewController: UITableViewDelegate, UITableViewDataSource {
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = UITableViewCell()
+        let cell = tableView.dequeueReusableCell(withIdentifier: "CountryCell", for: indexPath)
         cell.textLabel?.text = searching ? searchedCountry[indexPath.row] : countryList[indexPath.row]
         cell.textLabel?.textColor = .white
         cell.backgroundColor = .clear
+        
         let selectedBackgroundView = UIView()
         selectedBackgroundView.backgroundColor = UIColor.colorFromHex("#BC214B")
         cell.selectedBackgroundView = selectedBackgroundView
+        
         return cell
     }
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        selected = searching ? searchedCountry[indexPath.row] : countryList[indexPath.row]
+        selectedCountry = searching ? searchedCountry[indexPath.row] : countryList[indexPath.row]
         performSegue(withIdentifier: "detailsViewController", sender: self)
         tableView.deselectRow(at: indexPath, animated: true)
         searchBar.searchTextField.resignFirstResponder()
@@ -122,15 +127,17 @@ extension TableViewController: UIScrollViewDelegate {
         let pageIndex = round(scrollView.contentOffset.x / scrollView.frame.width)
         pageControl.currentPage = Int(pageIndex)
         
-        // Dynamic update of country list based on pageIndex
-        countryList = NSLocale.isoCountryCodes
-            .shuffled()
-            .compactMap { code in
-                let id = NSLocale.localeIdentifier(fromComponents: [NSLocale.Key.countryCode.rawValue: code])
-                let name = NSLocale(localeIdentifier: "en").displayName(forKey: .identifier, value: id) ?? "Country not found for code: \(code)"
-                return "\(name) \(countryFlag(for: code))"
-            }
-        tableView.reloadData()
+        // Only reloads the table view once the page index is changed
+        if pageIndex == 2 {
+            countryList = NSLocale.isoCountryCodes
+                .shuffled()
+                .compactMap { code in
+                    let id = NSLocale.localeIdentifier(fromComponents: [NSLocale.Key.countryCode.rawValue: code])
+                    let name = NSLocale(localeIdentifier: "en").displayName(forKey: .identifier, value: id) ?? "Country not found for code: \(code)"
+                    return "\(name) \(countryFlag(for: code))"
+                }
+            tableView.reloadData()
+        }
     }
 }
 
@@ -138,8 +145,12 @@ extension TableViewController: UIScrollViewDelegate {
 
 extension TableViewController: UISearchBarDelegate {
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
-        searchedCountry = countryList.filter { $0.lowercased().contains(searchText.lowercased()) }
+        searchedCountry = countryList.filter { $0.localizedCaseInsensitiveContains(searchText) }
         searching = !searchedCountry.isEmpty
+        UIView.animate(withDuration: 0.9) {
+            self.scrollView.isHidden = true
+            searchBar.frame.origin.y = self.view.safeAreaInsets.top
+        }
         tableView.reloadData()
     }
     
@@ -147,9 +158,9 @@ extension TableViewController: UISearchBarDelegate {
         searching = false
         searchBar.text = ""
         tableView.reloadData()
-        
-        UIView.animate(withDuration: 1.0) {
-            searchBar.frame.origin.y = self.view.safeAreaInsets.top
+        UIView.animate(withDuration: 190.0) {
+            self.scrollView.isHidden = true
+            searchBar.frame.origin.y = self.view.safeAreaInsets.bottom
         }
     }
 }
