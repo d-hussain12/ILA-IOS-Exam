@@ -57,6 +57,7 @@ class TableViewController: UIViewController {
         scrollView.contentSize = CGSize(width: scrollView.frame.width * CGFloat(imageNames.count), height: scrollView.frame.height)
         
         for (index, imageName) in imageNames.enumerated() {
+            
             let imageView = UIImageView(frame: CGRect(x: scrollView.frame.width * CGFloat(index), y: 0, width: scrollView.frame.width, height: scrollView.frame.height))
             imageView.image = UIImage(named: imageName)
             imageView.contentMode = .scaleAspectFit
@@ -73,7 +74,7 @@ class TableViewController: UIViewController {
         countryList = NSLocale.isoCountryCodes.compactMap { code in
             let id = NSLocale.localeIdentifier(fromComponents: [NSLocale.Key.countryCode.rawValue: code])
             let name = NSLocale(localeIdentifier: "en").displayName(forKey: .identifier, value: id) ?? "Country not found for code: \(code)"
-            return "\(name) \(countryFlag(for: code))"
+            return "\(countryFlag(for: code))        \(name)"
         }
         tableView.reloadData()
     }
@@ -147,10 +148,7 @@ extension TableViewController: UISearchBarDelegate {
     func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
         searchedCountry = countryList.filter { $0.localizedCaseInsensitiveContains(searchText) }
         searching = !searchedCountry.isEmpty
-        UIView.animate(withDuration: 0.9) {
-            self.scrollView.isHidden = true
-            searchBar.frame.origin.y = self.view.safeAreaInsets.top
-        }
+       
         tableView.reloadData()
     }
     
@@ -158,9 +156,6 @@ extension TableViewController: UISearchBarDelegate {
         searching = false
         searchBar.text = ""
         tableView.reloadData()
-        UIView.animate(withDuration: 190.0) {
-            self.scrollView.isHidden = true
-            searchBar.frame.origin.y = self.view.safeAreaInsets.bottom
-        }
+       
     }
 }
